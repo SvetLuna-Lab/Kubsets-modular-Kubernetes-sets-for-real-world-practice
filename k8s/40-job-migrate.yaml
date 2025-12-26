@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: kubsets
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: postgres:16
+          command:
+            - sh
+            - -c
+            - |
+              echo "waiting for db..."
+              until pg_isready -h db -U kubsets -d kubsets; do sleep 2; done
+              echo "migrate: creating table..."
+              psql -h db -U kubsets -d kubsets -c "CREATE TABLE IF NOT EXISTS heartbeat(ts timestamptz default now());"
+          env:
+            - name: PGPASSWORD
+              value: kubsets
