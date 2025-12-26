@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-config
+  namespace: kubsets
+data:
+  APP_NAME: "kubsets-web"
+  DB_HOST: "db"
+  DB_PORT: "5432"
+  DB_NAME: "kubsets"
+  DB_USER: "kubsets"
