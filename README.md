@@ -1,4 +1,4 @@
-# kubsets — Kubernetes “sets” in practice
+# Kubsets — Kubernetes “sets” in practice
 
 ![CubeSat 1U](assets/cubesat.jpg)
 
@@ -125,17 +125,19 @@ kubectl get jobs -n kubsets
 ```
 
 ## What each manifest demonstrates
-00-namespace.yaml
+
+**00-namespace.yaml**
 
 - A dedicated namespace (clean isolation).
 This is your “satellite bus”: everything else lives inside it.
 
-05-configmap.yaml
+
+**05-configmap.yaml**
 
 - Config injection into pods (non-secret configuration).
 
-10-deployment-web.yaml + 15-service-web.yaml
 
+**10-deployment-web.yaml + 15-service-web.yaml**
 
 Stateless service pattern:
 
@@ -145,7 +147,8 @@ Stateless service pattern:
 
 - Easy scaling
 
-20-statefulset-db.yaml + 25-service-db.yaml
+
+**20-statefulset-db.yaml + 25-service-db.yaml**
 
 Stateful workload pattern:
 
@@ -155,7 +158,8 @@ Stateful workload pattern:
 
 - DB as a service dependency
 
-30-daemonset-agent.yaml
+
+**30-daemonset-agent.yaml**
 
 Node-level pattern:
 
@@ -163,7 +167,8 @@ Node-level pattern:
 
 - “Fleet telemetry agent” idea (logs/metrics/health hooks)
 
-40-job-migrate.yaml
+
+**40-job-migrate.yaml**
 
 One-off lifecycle action:
 
@@ -171,7 +176,8 @@ One-off lifecycle action:
 
 - Safe to re-run depending on your migration logic
 
-50-cronjob-heartbeat.yaml
+
+**50-cronjob-heartbeat.yaml**
 
 Scheduled lifecycle action:
 
