@@ -241,6 +241,66 @@ kind delete cluster
 
 - Metrics/logging hooks, minimal dashboards, alert rules
 
+## Demo scenario (2 minutes)
+
+```bash
+make kind-up
+make deploy
+make status
+
+# Web telemetry (sample logs)
+make logs-web
+
+# One-shot migration Job logs
+make logs-migrate
+
+# CronJob should create Jobs
+make cron-jobs
+
+# Cleanup
+make destroy
+make kind-down
+```
+
+**Smoke check (no CI)**
+```bash
+make kind-up
+make deploy
+
+# Web must become Available
+kubectl wait -n kubsets --for=condition=available deploy/web --timeout=120s
+
+# Migration Job must complete (if you run it)
+kubectl wait -n kubsets --for=condition=complete job/migrate --timeout=180s
+
+# CronJob must exist
+kubectl get -n kubsets cronjob heartbeat
+
+# Optional quick probe
+# (if you have port-forward target) make port-forward && curl -s localhost:8080/health
+
+```
+**Quick “showcase” artifacts (optional but recommended)**
+
+- assets/kubectl-get-all.png — output of:
+```bash
+kubectl get all -n kubsets
+```
+
+- assets/web-logs.png — a few lines from:
+```bash
+make logs-web
+```
+**What I would extend next**
+
+- Networking: Ingress/HTTP routing, NetworkPolicies, mTLS-ready layout.
+
+- Storage: PVC + StorageClass examples, backup/restore job patterns.
+
+- Security: RBAC minimal roles, PodSecurity admission baseline, secret handling patterns.
+
+- Observability: Prometheus scrape annotations, structured logs, simple dashboards.
+
 
 ## License
 
