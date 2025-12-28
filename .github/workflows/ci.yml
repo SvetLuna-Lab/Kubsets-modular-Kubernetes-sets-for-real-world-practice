@@ -1,0 +1,92 @@
+name: ci-kind-smoke
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+jobs:
+  kind-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.30.0"
+
+      - name: Install kind
+        uses: helm/kind-action@v1.10.0
+        with:
+          config: kind/cluster.yaml
+          wait: 120s
+
+      - name: Show cluster info
+        run: |
+          kubectl version --client
+          kind version
+          kubectl cluster-info
+          kubectl get nodes -o wide
+
+      - name: Build web image
+        run: |
+          docker build -t kubsets-web:local -f app/Dockerfile app
+
+      - name: Load image into kind
+        run: |
+          kind load docker-image kubsets-web:local
+
+      - name: Deploy manifests
+        run: |
+          kubectl apply -f k8s/00-namespace.yaml
+          kubectl apply -f k8s/05-configmap.yaml
+          kubectl apply -f k8s/20-statefulset-db.yaml
+          kubectl apply -f k8s/25-service-db.yaml
+          kubectl apply -f k8s/10-deployment-web.yaml
+          kubectl apply -f k8s/15-service-web.yaml
+          kubectl apply -f k8s/30-daemonset-agent.yaml
+          kubectl apply -f k8s/40-job-migrate.yaml
+          kubectl apply -f k8s/50-cronjob-heartbeat.yaml
+
+      - name: Smoke checks
+        run: |
+          set -e
+          kubectl -n kubsets rollout status deploy/web --timeout=180s
+          kubectl -n kubsets rollout status statefulset/db --timeout=240s
+          kubectl -n kubsets rollout status ds/agent --timeout=180s
+
+          # migrate job: дождаться завершения (если твой Job запускается сразу)
+          kubectl -n kubsets wait --for=condition=complete job/migrate --timeout=240s
+
+          # cronjob существует
+          kubectl -n kubsets get cronjob heartbeat
+
+          # краткий статус
+          kubectl -n kubsets get all
+          kubectl -n kubsets get events --sort-by=.metadata.creationTimestamp | tail -n 40
+
+      - name: Debug on failure
+        if: failure()
+        run: |
+          echo "=== kubsets namespace objects ==="
+          kubectl -n kubsets get all -o wide || true
+          echo "=== pods ==="
+          kubectl -n kubsets get pods -o wide || true
+          echo "=== describe pods ==="
+          for p in $(kubectl -n kubsets get pod -o name 2>/dev/null); do
+            echo "--- $p ---"
+            kubectl -n kubsets describe "$p" || true
+          done
+          echo "=== logs (all containers) ==="
+          for p in $(kubectl -n kubsets get pod -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+            echo "--- logs: $p ---"
+            kubectl -n kubsets logs "$p" --all-containers --tail=200 || true
+          done
+          echo "=== events tail ==="
+          kubectl -n kubsets get events --sort-by=.metadata.creationTimestamp | tail -n 80 || true
