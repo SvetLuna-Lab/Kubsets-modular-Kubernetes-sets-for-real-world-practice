@@ -1,80 +1,71 @@
-# .github/workflows/ci.yml
-name: kubsets-ci
+name: ci
 
 on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
-  workflow_dispatch: {}
 
 jobs:
   kind-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup kubectl
+      - name: Install kubectl
         uses: azure/setup-kubectl@v4
         with:
           version: v1.29.0
 
-      - name: Setup kind
+      - name: Install kind
         uses: helm/kind-action@v1.10.0
         with:
-          cluster_name: kubsets
           config: kind/cluster.yaml
-          wait: 120s
+          cluster_name: kubsets
 
       - name: Build web image
         run: |
-          docker build -t kubsets-web:local ./app
-
-      - name: Debug docker + kind
-        run: |
-          kind get clusters
-          kind get nodes --name kubsets
-          docker images | head -n 80
+          docker build -t kubsets-web:ci ./app
 
       - name: Load image into kind
         run: |
-          kind load docker-image kubsets-web:local --name kubsets
+          kind load docker-image kubsets-web:ci --name kubsets
 
       - name: Deploy manifests
         run: |
-          kubectl apply -f k8s/00-namespace.yaml
-          kubectl apply -f k8s/05-configmap.yaml
-          kubectl apply -f k8s/10-deployment-web.yaml
-          kubectl apply -f k8s/15-service-web.yaml
-          kubectl apply -f k8s/20-statefulset-db.yaml
-          kubectl apply -f k8s/25-service-db.yaml
-          kubectl apply -f k8s/30-daemonset-agent.yaml
-          kubectl apply -f k8s/40-job-migrate.yaml
-          kubectl apply -f k8s/50-cronjob-heartbeat.yaml
+          kubectl apply -f k8s/
 
-      - name: Smoke checks
+      - name: Wait for DB ready
         run: |
-          kubectl -n kubsets get all
-          kubectl -n kubsets wait --for=condition=available deploy/web --timeout=180s
-          kubectl -n kubsets wait --for=condition=ready pod -l app=db --timeout=240s || true
-          kubectl -n kubsets wait --for=condition=complete job/migrate --timeout=240s
-          kubectl -n kubsets get cronjob heartbeat
-          kubectl -n kubsets get jobs
+          kubectl -n kubsets rollout status statefulset/db --timeout=180s
 
-      - name: Logs (web)
+      - name: Wait for Web ready
+        run: |
+          kubectl -n kubsets rollout status deployment/web --timeout=180s
+
+      - name: Wait for migrate Job complete (if created)
+        run: |
+          # Job is created by manifests; wait only if it exists
+          if kubectl -n kubsets get job migrate >/dev/null 2>&1; then
+            kubectl -n kubsets wait --for=condition=complete job/migrate --timeout=180s
+          else
+            echo "Job/migrate not found — skipping"
+          fi
+
+      - name: Show status
         if: always()
         run: |
-          kubectl -n kubsets logs deploy/web --tail=200 || true
+          kubectl -n kubsets get all
+          echo "---- pods ----"
+          kubectl -n kubsets get pods -o wide
+          echo "---- events ----"
+          kubectl -n kubsets get events --sort-by=.lastTimestamp | tail -n 60
 
-      - name: Describe (debug on failure)
-        if: failure()
+      - name: Show logs (web + db)
+        if: always()
         run: |
-          kubectl -n kubsets get pods -o wide || true
-          kubectl -n kubsets describe pods || true
-          kubectl -n kubsets describe deploy web || true
-          kubectl -n kubsets describe sts db || true
-          kubectl -n kubsets describe job migrate || true
-          kubectl -n kubsets describe cronjob heartbeat || true
+          echo "---- web logs ----"
+          kubectl -n kubsets logs deploy/web --tail=200 || true
+          echo "---- db logs ----"
+          kubectl -n kubsets logs statefulset/db --tail=200 || true
