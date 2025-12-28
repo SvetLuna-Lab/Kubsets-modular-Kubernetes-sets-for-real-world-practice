@@ -1,5 +1,5 @@
 # Kubsets — “Kubernetes sets” on practice (Kind + manifests)
-
+![CubeSat 1U](assets/cubesat.jpg)
 A compact, **hands-on** Kubernetes sandbox where each “kubset” is a focused scenario:
 Deployment + Service + ConfigMap, StatefulSet (Postgres), DaemonSet agent, one-shot Job, CronJob heartbeat — all runnable locally via **Kind**.
 
