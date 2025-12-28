@@ -191,7 +191,7 @@ Planned expansions:
 
 - optional: lightweight CI smoke (kind-in-ci or manifest validation)
 
+### Status: v0.1.0 (complete baseline)
 
 ### License
-
 MIT — see LICENSE.
