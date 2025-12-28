@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
 
 jobs:
@@ -13,59 +13,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: v1.29.0
-
-      - name: Install kind
+      - name: Create kind cluster
         uses: helm/kind-action@v1.10.0
         with:
           config: kind/cluster.yaml
           cluster_name: kubsets
 
-      - name: Build web image
+      - name: Build web image (tag must match k8s manifest)
         run: |
-          docker build -t kubsets-web:ci ./app
+          docker build -t kubsets-web:local ./app
 
       - name: Load image into kind
         run: |
-          kind load docker-image kubsets-web:ci --name kubsets
+          kind load docker-image kubsets-web:local --name kubsets
 
       - name: Deploy manifests
         run: |
           kubectl apply -f k8s/
 
-      - name: Wait for DB ready
+      - name: Wait for DB
         run: |
           kubectl -n kubsets rollout status statefulset/db --timeout=180s
 
-      - name: Wait for Web ready
+      - name: Wait for Web (non-fatal, diagnostics will follow)
+        continue-on-error: true
         run: |
           kubectl -n kubsets rollout status deployment/web --timeout=180s
 
-      - name: Wait for migrate Job complete (if created)
-        run: |
-          # Job is created by manifests; wait only if it exists
-          if kubectl -n kubsets get job migrate >/dev/null 2>&1; then
-            kubectl -n kubsets wait --for=condition=complete job/migrate --timeout=180s
-          else
-            echo "Job/migrate not found — skipping"
-          fi
-
-      - name: Show status
+      - name: Diagnostics (always)
         if: always()
         run: |
+          echo "=== kubsets: all ==="
           kubectl -n kubsets get all
-          echo "---- pods ----"
+          echo "=== kubsets: pods wide ==="
           kubectl -n kubsets get pods -o wide
-          echo "---- events ----"
-          kubectl -n kubsets get events --sort-by=.lastTimestamp | tail -n 60
+          echo "=== kubsets: describe web pods ==="
+          kubectl -n kubsets describe pod -l app=web || true
+          echo "=== kubsets: web logs ==="
+          kubectl -n kubsets logs -l app=web --tail=200 || true
+          echo "=== kubsets: events (tail) ==="
+          kubectl -n kubsets get events --sort-by=.lastTimestamp | tail -n 120
 
-      - name: Show logs (web + db)
-        if: always()
+      - name: Fail if web is not Available
         run: |
-          echo "---- web logs ----"
-          kubectl -n kubsets logs deploy/web --tail=200 || true
-          echo "---- db logs ----"
-          kubectl -n kubsets logs statefulset/db --tail=200 || true
+          kubectl -n kubsets get deploy web -o jsonpath='{.status.availableReplicas}' | grep -E '^[1-9]' >/dev/null
