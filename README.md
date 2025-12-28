@@ -1,4 +1,6 @@
 # Kubsets — “Kubernetes sets” on practice (Kind + manifests)
+[![CI](https://github.com/SvetLuna-Lab/Kubsets-modular-Kubernetes-sets-for-real-world-practice/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/SvetLuna-Lab/Kubsets-modular-Kubernetes-sets-for-real-world-practice/actions/workflows/ci.yml?query=branch%3Amain)
+
 ![CubeSat 1U](assets/cubesat.jpg)
 
 A compact, **hands-on** Kubernetes sandbox where each “kubset” is a focused scenario:
